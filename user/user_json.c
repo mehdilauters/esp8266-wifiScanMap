@@ -24,7 +24,7 @@ bool build_probe_json(struct probeinfo pi, bool second) {
   if(second) {
     os_sprintf(buf, ",");
   }
-  os_sprintf(buf, "%s{\"t\":%d,\"b\":\"%s\",\"e\":\"%s\"}", buf, pi.time_s, mac, pi.ssid);
+  os_sprintf(buf, "%s{\"t\":\"%d\",\"b\":\"%s\",\"e\":\"%s\"}", buf, pi.time_s, mac, pi.ssid);
   return json_put_string(buf);
 }
 
@@ -36,7 +36,7 @@ bool build_beacon_json(struct beaconinfo bi, bool second) {
   if(second) {
     os_sprintf(buf, ",");
   }
-  os_sprintf(buf, "%s{\"t\":%d,\"b\":\"%s\",\"e\":\"%s\", \"c\":%d, \"s\":%d, \"k\":%d}", buf, bi.time_s, mac, bi.ssid, bi.channel, bi.rssi, bi.encryption);
+  os_sprintf(buf, "%s{\"t\":\"%d\",\"b\":\"%s\",\"e\":\"%s\", \"c\":\"%d\", \"s\":\"%d\", \"k\":%d}", buf, bi.time_s, mac, bi.ssid, bi.channel, bi.rssi, bi.encryption);
   return json_put_string(buf);
 }
 
@@ -48,7 +48,7 @@ bool build_client_json(struct clientinfo ci, bool second) {
   if(second) {
     os_sprintf(buf, ",");
   }
-  os_sprintf(buf, "%s{\"t\":%d,\"b\":\"%s\", \"s\":%d}",buf,ci.time_s, mac, ci.rssi);
+  os_sprintf(buf, "%s{\"t\":\"%d\",\"b\":\"%s\", \"s\":%d}",buf,ci.time_s, mac, ci.rssi);
   return json_put_string(buf);
 }
 

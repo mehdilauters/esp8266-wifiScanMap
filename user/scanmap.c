@@ -162,8 +162,18 @@ struct beaconinfo ICACHE_FLASH_ATTR parse_beacon(uint8_t *frame, uint16_t framel
           
           memset(bi.ssid, '\x00', 33);
           memcpy(bi.ssid, frame + pos + 2, bi.ssid_len);
+          int i;
           
           bi.err = 0;  // before was error??
+          
+//           for(i = 0; i<bi.ssid_len; i++) {
+//             if(bi.ssid[i] > 128) {
+//              os_printf("invalid ssid: %s\n", bi.ssid);
+//              bi.err = 1;
+//              break;
+//             }
+//           }
+          
           break;
         case 0x03: //Channel
           bi.channel = (int) frame[pos + 2];
@@ -280,6 +290,9 @@ int ICACHE_FLASH_ATTR register_beacon(struct beaconinfo beacon)
 
 int ICACHE_FLASH_ATTR register_probe(struct probeinfo pi)
 {
+  if(pi.err) {
+    return 0;
+  }
   int known = 0;   // Clear known flag
   uint16_t u = 0;
   for (u = 0; u < fifo_size(&scanmap.probesinfos); u++)

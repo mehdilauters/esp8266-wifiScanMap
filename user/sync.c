@@ -34,13 +34,34 @@ ip_addr_t sync_ip;
 ip_addr_t my_ip;
 esp_tcp sync_tcp;
 
-#define MAX_BUFFER_SIZE 2048
+
+# define MAX_BUFFER_SIZE 2048
+
 char buffer[ MAX_BUFFER_SIZE ];
+
+#ifdef SYNC_DNS
+
+#define B64_LENGTH(n) (((4 * n / 3) + 3) & ~3)
+
+// b64 size
+# define MAX_B64_SIZE 40
+#define B64_BUFFER_SIZE B64_LENGTH(MAX_B64_SIZE) + 20
+
+static void send_dns_data();
+static void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg );
+char b64_buffer[ B64_BUFFER_SIZE ];
+int to_send = 0;
+int already_sent = 0;
+int dns_tries = 0;
+int dns_last_send = 0;
+
+#endif
 
 static volatile os_timer_t sync_timer;
 static volatile os_timer_t watchdog_timer;
 
 static void tcp_connect( void *arg );
+
 
 bool json_put_char(char c) {
   if(strlen(buffer) + 2 >= MAX_BUFFER_SIZE) {
@@ -106,26 +127,62 @@ void watchdog_cb(void *arg) {
 }
 
 
+#ifdef SYNC_HTTP
 void send_data( void *arg ) {
   struct espconn *conn = arg;
-  
   os_memset(buffer, 0, MAX_BUFFER_SIZE);
-  
-  
   os_sprintf( buffer, "POST %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length:      ", SYNC_PATH, SYNC_HOST);
   os_sprintf( buffer, "%s\r\n\r\n",buffer);
-  
   int size = strlen(buffer);
   build_json(&scanmap);
+
   int new_size = strlen(buffer);
   char tmp[6];
   os_sprintf( tmp, "%5d", new_size - size);
   os_memcpy(&buffer[size-5 - 4], tmp, 5);
-
-//   os_printf( "Sending: %s\n", buffer );
+//   os_printf("%s\n",buffer);
   SEND( conn, buffer, os_strlen( buffer ) );
 }
+#endif
 
+
+#ifdef SYNC_DNS
+void send_dns_data(  ) {
+  os_memset(b64_buffer, 0, MAX_B64_SIZE);
+  
+  if(to_send == 0)
+  {
+    os_memset(buffer, 0, MAX_BUFFER_SIZE);
+    build_json(&scanmap);
+    os_printf("%s", buffer);
+    to_send = strlen(buffer) + 1;
+    already_sent = 0;
+  }
+  
+  // 
+  // +1 because of the subdomain '.' and +1 because of \0
+  int host_size = strlen(SYNC_HOST) +1+1;
+  
+  int size = MAX_B64_SIZE;
+  if(to_send < size) {
+    size = to_send;
+  }
+  int count = base64_encode(size, buffer+already_sent, B64_BUFFER_SIZE, b64_buffer);
+  dns_last_send = size;
+  to_send -= size;
+  already_sent += size;
+  
+  os_printf("SEND DNS DATA %d\n", size);
+  
+  char host[255];
+  os_sprintf(host,".%s",SYNC_HOST);
+  os_strcpy(b64_buffer+count,host);
+//   os_printf("\n=>%s\n", b64_buffer);
+  espconn_gethostbyname( &sync_conn, b64_buffer, &sync_ip, dns_sync_done );
+}
+#endif
+
+#ifdef SYNC_HTTP
 void data_received( void *arg, char *pdata, unsigned short len )
 {
   os_printf( "%s: %s\n", __FUNCTION__, pdata );
@@ -181,7 +238,6 @@ void tcp_connect( void *arg ) {
     }
   }
 }
-
 void dns_done( const char *name, ip_addr_t *ipaddr, void *arg )
 {
   if ( ipaddr == NULL) 
@@ -193,7 +249,7 @@ void dns_done( const char *name, ip_addr_t *ipaddr, void *arg )
   {
     os_printf("found server %d.%d.%d.%d\n",
               *((uint8 *)&ipaddr->addr), *((uint8 *)&ipaddr->addr + 1), *((uint8 *)&ipaddr->addr + 2), *((uint8 *)&ipaddr->addr + 3));
-
+    
     struct espconn *conn = arg;
     
     conn->type = ESPCONN_TCP;
@@ -211,6 +267,38 @@ void dns_done( const char *name, ip_addr_t *ipaddr, void *arg )
     tcp_connect(arg);
   }
 }
+
+#endif
+
+#ifdef SYNC_DNS
+void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
+  if ( ipaddr == NULL) 
+  {
+    os_printf("DNS lookup failed\n");
+    dns_tries++;
+    if(dns_tries >= MAX_TRIES) {
+      to_send = 0;
+      sync_done(false);
+      return;
+    }
+    to_send += dns_last_send;
+    already_sent -= dns_last_send;
+    os_printf("Retry last_chunk=%d to_send=%d\n", dns_last_send, to_send);
+    send_dns_data();
+  }
+  else
+  {
+    dns_tries = 0;
+    os_printf("DNS SYNC DONE %d\n",to_send);
+    if(scanmap_isempty() && to_send == 0) {
+      sync_done(true);
+    } else {
+      os_printf("sending more data\n");
+      send_dns_data();
+    }
+  }
+}
+#endif
 
 void wifi_callback( System_Event_t *evt )
 {
@@ -242,8 +330,15 @@ void wifi_callback( System_Event_t *evt )
 //                 IP2STR(&evt->event_info.got_ip.mask),
 //                 IP2STR(&evt->event_info.got_ip.gw));
 //       os_printf("\n");
-      
-      espconn_gethostbyname( &sync_conn, SYNC_HOST, &sync_ip, dns_done );
+      #ifdef SYNC_HTTP
+        os_printf("\nHTTP sync\n");
+        espconn_gethostbyname( &sync_conn, SYNC_HOST, &sync_ip, dns_done );
+      #elif defined(SYNC_DNS)
+        os_printf("\nDNS sync\n");
+        send_dns_data();
+      #else
+        os_printf("ERROR: no transport protocol\n");
+      #endif
       break;
     }
     

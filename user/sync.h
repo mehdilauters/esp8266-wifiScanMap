@@ -5,7 +5,9 @@
 
 void sync_init();
 
+#ifdef SYNC_HTTP
 bool json_put_char(char c);
 bool json_put_string(char *s);
+#endif
 
 #endif

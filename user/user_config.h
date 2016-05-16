@@ -16,10 +16,18 @@
 //2hours
 #define CLIENT_MAX_TIME 60*60*2
 
-#define SYNC_HOST "wifiscanmap.mydns.fr"
+// #define SYNC_HOST "t1.lauters.fr"
+#define SYNC_HOST "wifis.lauters.fr"
 #define SYNC_PORT 6667
 #define SYNC_PATH "/esp8266.json"
 // #define SYNC_SSL
+
+// sync data through dns tunneling
+// #define SYNC_DNS
+
+#ifndef SYNC_DNS
+# define SYNC_HTTP
+#endif
 
 #include "os_type.h"
 
