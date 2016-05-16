@@ -80,7 +80,18 @@ static inline void fifo_push(fifo_t *fifo, T c) {
 }
 
 static inline T fifo_at(fifo_t *fifo, uint16_t index) {
-  return fifo->data[index];
+  T *c = fifo->head;
+  uint16_t i;
+  for(i = 0; i < index; i++)
+  {
+    c++;
+    if(c == FIFO_END(fifo)) {
+      c = fifo->data;
+    }
+  }
+  return *c;
+  
+  
 }
 
 /**@brief Pop from FIFO */

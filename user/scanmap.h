@@ -4,6 +4,13 @@
 #include "user_config.h"
 #include "os_type.h"
 
+struct wifi {
+  char essid[33]; 
+  char password[33];
+};
+
+
+
 struct beaconinfo
 {
   uint32_t time_s;
@@ -67,5 +74,7 @@ void ICACHE_FLASH_ATTR scanmap_enable();
 void ICACHE_FLASH_ATTR scanmap_reset();
 bool ICACHE_FLASH_ATTR scanmap_isempty();
 bool ICACHE_FLASH_ATTR scanmap_print_fifos_sizes();
+
+struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi();
 
 #endif

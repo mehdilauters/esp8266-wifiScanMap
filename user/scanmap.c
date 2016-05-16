@@ -8,6 +8,8 @@
 // #include "ip_addr.h"
 // #include "espconn.h"
 
+#include "wifis_spots.h"
+
 static volatile os_timer_t channelHop_timer;
 
 void channelHop(void *arg)
@@ -22,6 +24,74 @@ uint8_t broadcast1[3] = { 0x01, 0x00, 0x5e };
 uint8_t broadcast2[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 uint8_t broadcast3[3] = { 0x33, 0x33, 0x00 };
 
+
+void ICACHE_FLASH_ATTR print_beacon(struct beaconinfo beacon)
+{
+  if (beacon.err != 0) {
+    //os_printf("BEACON ERR: (%d)  ", beacon.err);
+  } else {
+    os_printf("BEACON: [%32s]  ", beacon.ssid);
+    int i = 0;
+    for (i = 0; i < 6; i++) os_printf("%02x", beacon.bssid[i]);
+    os_printf("   %2d", beacon.channel);
+    if(! beacon.encryption ) {
+      os_printf("   OPN");
+    } else {
+      os_printf("   KEY");
+    }
+    os_printf("   %4d\r\n", beacon.rssi);
+  }
+}
+
+void ICACHE_FLASH_ATTR print_probe(struct probeinfo pi)
+{
+  if (pi.err != 0) {
+    //os_printf("PROBE ERR: (%d)  ", beacon.err);
+  } else {
+    os_printf("PROBE: [%32s]  ", pi.ssid);
+    int i = 0;
+    for (i = 0; i < 6; i++) os_printf("%02x", pi.bssid[i]);
+    os_printf("\r\n");
+  }
+}
+
+void ICACHE_FLASH_ATTR print_client(struct clientinfo ci)
+{
+  uint16_t u = 0;
+  int i = 0;
+  int known = 0;   // Clear known flag
+  if (ci.err != 0) {
+  } else {
+    os_printf("CLIENT: ");
+    int i = 0;
+    for (i = 0; i < 6; i++) os_printf("%02x", ci.station[i]);
+    os_printf(" works with: ");
+    struct beaconinfo item = fifo_at(&scanmap.beaconsinfos, u).beaconinfo;
+    for (u = 0; u < fifo_size(&scanmap.clientsinfos); u++)
+    {
+      if (! memcmp(item.bssid, ci.bssid, ETH_MAC_LEN)) {
+        os_printf("[%32s]", item.ssid);
+        known = 1;
+        break;
+      }   // AP known => Set known flag
+    }
+    if (! known)  {
+      os_printf("%22s", " ");
+      for (i = 0; i < 6; i++) os_printf("%02x", ci.bssid[i]);
+    }
+    
+    os_printf("%5s", " ");
+    for (i = 0; i < 6; i++) os_printf("%02x", ci.ap[i]);
+    os_printf("%5s", " ");
+    
+    if (! known) {
+      os_printf("   %3d", ci.channel);
+    } else {
+      os_printf("   %3d", item.channel);
+    }
+    os_printf("   %4d\r\n", ci.rssi);
+  }
+}
 
 struct probeinfo ICACHE_FLASH_ATTR parse_probe(uint8_t *frame, uint16_t framelen)
 {
@@ -178,6 +248,7 @@ struct clientinfo ICACHE_FLASH_ATTR parse_data(uint8_t *frame, uint16_t framelen
   return ci;
 }
 
+
 int ICACHE_FLASH_ATTR register_beacon(struct beaconinfo beacon)
 {
   int known = 0;   // Clear known flag
@@ -192,10 +263,12 @@ int ICACHE_FLASH_ATTR register_beacon(struct beaconinfo beacon)
   }
   if (! known)  // AP is NEW, copy MAC to array and return it
   {
+    
+    
     if(! fifo_isfull(&scanmap.beaconsinfos)) {
       union data_item item;
       item.beaconinfo = beacon;
-      fifo_push(&scanmap.beaconsinfos, item);
+      fifo_push(&scanmap.beaconsinfos, item);      
       toggle_led();
     } else {
       fifo_pop(&scanmap.beaconsinfos);
@@ -260,74 +333,6 @@ int ICACHE_FLASH_ATTR register_client(struct clientinfo ci)
     }
   }
   return known;
-}
-
-void ICACHE_FLASH_ATTR print_beacon(struct beaconinfo beacon)
-{
-  if (beacon.err != 0) {
-    //os_printf("BEACON ERR: (%d)  ", beacon.err);
-  } else {
-    os_printf("BEACON: [%32s]  ", beacon.ssid);
-    int i = 0;
-    for (i = 0; i < 6; i++) os_printf("%02x", beacon.bssid[i]);
-    os_printf("   %2d", beacon.channel);
-    if(! beacon.encryption ) {
-      os_printf("   OPN");
-    } else {
-      os_printf("   KEY");
-    }
-    os_printf("   %4d\r\n", beacon.rssi);
-  }
-}
-
-void ICACHE_FLASH_ATTR print_probe(struct probeinfo pi)
-{
-  if (pi.err != 0) {
-    //os_printf("PROBE ERR: (%d)  ", beacon.err);
-  } else {
-    os_printf("PROBE: [%32s]  ", pi.ssid);
-    int i = 0;
-    for (i = 0; i < 6; i++) os_printf("%02x", pi.bssid[i]);
-    os_printf("\r\n");
-  }
-}
-
-void ICACHE_FLASH_ATTR print_client(struct clientinfo ci)
-{
-  uint16_t u = 0;
-  int i = 0;
-  int known = 0;   // Clear known flag
-  if (ci.err != 0) {
-  } else {
-    os_printf("CLIENT: ");
-    int i = 0;
-    for (i = 0; i < 6; i++) os_printf("%02x", ci.station[i]);
-    os_printf(" works with: ");
-    struct beaconinfo item = fifo_at(&scanmap.beaconsinfos, u).beaconinfo;
-    for (u = 0; u < fifo_size(&scanmap.clientsinfos); u++)
-    {
-      if (! memcmp(item.bssid, ci.bssid, ETH_MAC_LEN)) {
-        os_printf("[%32s]", item.ssid);
-        known = 1;
-        break;
-      }   // AP known => Set known flag
-    }
-    if (! known)  {
-      os_printf("%22s", " ");
-      for (i = 0; i < 6; i++) os_printf("%02x", ci.bssid[i]);
-    }
-    
-    os_printf("%5s", " ");
-    for (i = 0; i < 6; i++) os_printf("%02x", ci.ap[i]);
-    os_printf("%5s", " ");
-    
-    if (! known) {
-      os_printf("   %3d", ci.channel);
-    } else {
-      os_printf("   %3d", item.channel);
-    }
-    os_printf("   %4d\r\n", ci.rssi);
-  }
 }
 
 /* ==============================================
@@ -411,12 +416,14 @@ void ICACHE_FLASH_ATTR promisc_cb(uint8_t *buf, uint16_t len)
       }
     } else if(sniffer->buf[0] == 0x40) {
       struct probeinfo pi = parse_probe(sniffer->buf, 34);
-      if(register_probe(pi) == 0) {
-        #ifdef PRINT_ELEMENTS
-        //Serial.println("*");
-        print_probe(pi);
-        #endif
-        scanmap.nothing_new = 0;
+      if(strlen(pi.ssid) != 0) {
+        if(register_probe(pi) == 0) {
+          #ifdef PRINT_ELEMENTS
+          //Serial.println("*");
+          print_probe(pi);
+          #endif
+          scanmap.nothing_new = 0;
+        }
       }
     }
   } else {
@@ -478,6 +485,23 @@ bool ICACHE_FLASH_ATTR scanmap_print_fifos_sizes() {
 
 bool ICACHE_FLASH_ATTR scanmap_isempty() {
   return fifo_isempty(&scanmap.beaconsinfos) && fifo_isempty(&scanmap.probesinfos) && fifo_isempty(&scanmap.clientsinfos);
+}
+
+struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi() {
+  uint8_t i,u;
+  
+  for(i=0; i < sizeof(wifis_spots) / sizeof(struct wifi); i++) {
+    
+    for (u = 0; u < fifo_size(&scanmap.beaconsinfos); u++)
+    {
+      struct beaconinfo item = fifo_at(&scanmap.beaconsinfos, u).beaconinfo;
+      if(strlen(wifis_spots[i].essid) == item.ssid_len)
+        if (! memcmp(wifis_spots[i].essid, item.ssid, item.ssid_len)) {
+          return &wifis_spots[i];
+        }   // AP known => Set known flag
+    }
+  }
+  return NULL;
 }
 
 void ICACHE_FLASH_ATTR scanmap_init() {

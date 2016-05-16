@@ -11,6 +11,7 @@
 #include "ip_addr.h"
 #include "espconn.h"
 
+#define WATCHDOG_MS 10000
 
 #ifdef SYNC_SSL
 # define CONNECT(conn) espconn_secure_connect( conn )
@@ -37,6 +38,7 @@ esp_tcp sync_tcp;
 char buffer[ MAX_BUFFER_SIZE ];
 
 static volatile os_timer_t sync_timer;
+static volatile os_timer_t watchdog_timer;
 
 static void tcp_connect( void *arg );
 
@@ -57,25 +59,36 @@ bool json_put_string(char *s) {
   return true;
 }
 
-void connect_station() {
-  os_printf("Connecting to %s\n",SSID_NAME);
-  wifi_set_opmode(STATION_MODE);
+void connect_station(struct wifi _wifi) {
   
+  os_timer_arm(&watchdog_timer, WATCHDOG_MS, 1);
+  os_printf("Connecting to %s\n",_wifi.essid);
+  
+  wifi_set_opmode(STATION_MODE);
   static struct station_config config;
   config.bssid_set = 0;
-  os_memcpy( &config.ssid, SSID_NAME, 32 );
-  os_memcpy( &config.password, SSID_PASSWORD, 64 );
+  os_memcpy( &config.ssid, _wifi.essid, strlen(_wifi.essid) );
+  if(strlen(_wifi.password) > 0) {
+    os_memcpy( &config.password, _wifi.password, strlen(_wifi.password) );
+  } else {
+    *config.password = 0;
+  }
   wifi_station_set_config_current( &config );
   wifi_station_connect();
 }
 
 void sync_cb(void *arg)
 {
-  os_timer_disarm(&sync_timer);
-  disable_monitor();
-  os_printf("== Synchro start ==\n");
-  scanmap_print_fifos_sizes();
-  connect_station() ;
+  struct wifi * w = scanmap_get_available_wifi(); 
+  if(w != NULL) {
+    os_timer_disarm(&sync_timer);
+    disable_monitor();
+    os_printf("== Synchro start ==\n");
+    scanmap_print_fifos_sizes();
+    connect_station(*w);
+  } else {
+   os_printf("No known wifi availble\n"); 
+  }
 }
 
 void sync_done(bool ok) {
@@ -85,6 +98,11 @@ void sync_done(bool ok) {
   scanmap_print_fifos_sizes();
   scanmap_enable();
   os_timer_arm(&sync_timer, SYNC_PERIOD, 1);
+}
+
+void watchdog_cb(void *arg) {
+  os_timer_disarm(&watchdog_timer);
+  sync_done(false);
 }
 
 
@@ -218,6 +236,7 @@ void wifi_callback( System_Event_t *evt )
     
     case EVENT_STAMODE_GOT_IP:
     {
+      os_timer_disarm(&watchdog_timer);
 //       os_printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR,
 //                 IP2STR(&evt->event_info.got_ip.ip),
 //                 IP2STR(&evt->event_info.got_ip.mask),
@@ -245,4 +264,7 @@ void sync_init() {
   os_timer_disarm(&sync_timer);
   os_timer_setfn(&sync_timer, (os_timer_func_t *) sync_cb, NULL);
   os_timer_arm(&sync_timer, SYNC_PERIOD, 1);
+  
+  os_timer_disarm(&watchdog_timer);
+  os_timer_setfn(&watchdog_timer, (os_timer_func_t *) watchdog_cb, NULL);
 }
