@@ -19,7 +19,11 @@ static void user_procTask(os_event_t *events);
 
 static volatile os_timer_t second_timer;
 
+static volatile os_timer_t blink_timer;
+
 volatile uint32_t seconds = 0;
+int blink_count = 0;
+int blink_delay = 0; // ms
 
 void user_rf_pre_init(void) {
 }
@@ -34,18 +38,56 @@ uint32_t get_seconds() {
   return seconds;
 }
 
+uint32_t get_button_pressed() {
+  return GPIO_INPUT_GET(0) == 0;
+}
+
+void set_led(bool _status) {
+  if(_status) {
+    //Set GPIO2 to LOW
+    gpio_output_set(0, BIT2, BIT2, 0);
+  } else {
+    //Set GPIO2 to HIGH
+    gpio_output_set(BIT2, 0, BIT2, 0);
+  }
+}
+
 void toggle_led() {
+  
+  if(get_button_pressed()) {
+    return; // button pressed
+  }
   //Do blinky stuff
   if (GPIO_REG_READ(GPIO_OUT_ADDRESS) & BIT2)
   {
-    //Set GPIO2 to LOW
-    gpio_output_set(0, BIT2, BIT2, 0);
+    set_led(true);
   }
   else
   {
-    //Set GPIO2 to HIGH
-    gpio_output_set(BIT2, 0, BIT2, 0);
+    set_led(false);
   } 
+}
+
+void blink_once_led_next(void *arg) {
+  blink_led(blink_count -1, blink_delay);
+}
+
+void blink_once_led_done(void *arg)
+{
+  os_timer_disarm(&blink_timer);
+  set_led(false);
+  if(blink_count > 0) {
+    os_timer_setfn(&blink_timer, (os_timer_func_t *) blink_once_led_next, NULL);
+    os_timer_arm(&blink_timer, blink_delay, 1);
+  }
+}
+
+void blink_led(int count, int delay) {
+  os_timer_setfn(&blink_timer, (os_timer_func_t *) blink_once_led_done, NULL);
+  os_timer_arm(&blink_timer, delay, 1);
+  blink_count = count;
+  blink_delay = delay;
+  set_led(true);
 }
 
 void hex_print(char *p, size_t n)
@@ -97,7 +139,7 @@ void hex_print(char *p, size_t n)
 static void ICACHE_FLASH_ATTR
 user_procTask(os_event_t *events)
 {
-    os_delay_us(10);
+  os_delay_us(10);
 }
 
 
@@ -117,6 +159,8 @@ void ICACHE_FLASH_ATTR
 user_init()
 {
   
+  os_timer_disarm(&blink_timer);
+  
   // avoid error: pll_cal exceeds 2ms!!!
   wifi_set_sleep_type(NONE_SLEEP_T);
   
@@ -130,7 +174,7 @@ user_init()
   PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2);
 
   //Set GPIO2 low
-  gpio_output_set(0, BIT2, BIT2, 0);
+  set_led(false);
 
   system_init_done_cb(init_done);
     

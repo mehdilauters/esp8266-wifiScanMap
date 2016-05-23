@@ -10,6 +10,13 @@
 
 #include "wifis_spots.h"
 
+
+#ifdef LED_TOGGLE_REGISTER
+#define LED_TOGGLE() toggle_led();
+#else
+#define LED_TOGGLE()
+#endif
+
 static volatile os_timer_t channelHop_timer;
 
 void channelHop(void *arg)
@@ -93,6 +100,16 @@ void ICACHE_FLASH_ATTR print_client(struct clientinfo ci)
   }
 }
 
+bool is_valid_string(char * _s, int _len) {
+  int i;
+  for(i = 0; i<_len; i++) {
+    if(_s[i] < 32 || _s[i] > 128) {
+      return false;
+    }
+  }
+  return true;
+}
+
 struct probeinfo ICACHE_FLASH_ATTR parse_probe(uint8_t *frame, uint16_t framelen)
 {
   struct probeinfo pi;
@@ -118,7 +135,9 @@ struct probeinfo ICACHE_FLASH_ATTR parse_probe(uint8_t *frame, uint16_t framelen
           }
           memset(pi.ssid, '\x00', 33);
           memcpy(pi.ssid, frame + pos + 2, pi.ssid_len);
-          pi.err = 0;  // before was error??
+          
+          pi.err = !is_valid_string(pi.ssid, pi.ssid_len);
+          
           break;
       }
       pos++;
@@ -162,17 +181,20 @@ struct beaconinfo ICACHE_FLASH_ATTR parse_beacon(uint8_t *frame, uint16_t framel
           
           memset(bi.ssid, '\x00', 33);
           memcpy(bi.ssid, frame + pos + 2, bi.ssid_len);
-          int i;
           
-          bi.err = 0;  // before was error??
+          bi.err = !is_valid_string(bi.ssid, bi.ssid_len);
           
-//           for(i = 0; i<bi.ssid_len; i++) {
-//             if(bi.ssid[i] > 128) {
-//              os_printf("invalid ssid: %s\n", bi.ssid);
-//              bi.err = 1;
-//              break;
-//             }
-//           }
+          if(!bi.err && !scanmap.wififound) {
+            int i;
+            for(i=0; i < sizeof(wifis_spots) / sizeof(struct wifi); i++) {
+              if (! memcmp(wifis_spots[i].essid, bi.ssid, bi.ssid_len)) {
+                if(bi.rssi > SYNC_MIN_LEVEL) {
+                  scanmap.wififound = true;
+                  blink_led(5, 500);
+                }
+              }
+            }
+          }
           
           break;
         case 0x03: //Channel
@@ -275,15 +297,14 @@ int ICACHE_FLASH_ATTR register_beacon(struct beaconinfo beacon)
   {
     
     
-    if(! fifo_isfull(&scanmap.beaconsinfos)) {
-      union data_item item;
-      item.beaconinfo = beacon;
-      fifo_push(&scanmap.beaconsinfos, item);      
-      toggle_led();
-    } else {
+    if(fifo_isfull(&scanmap.beaconsinfos)) {
       fifo_pop(&scanmap.beaconsinfos);
       os_printf("exceeded max scanmap.aps_known\n");
     }
+    union data_item item;
+    item.beaconinfo = beacon;
+    fifo_push(&scanmap.beaconsinfos, item);      
+    LED_TOGGLE();
   }
   return known;
 }
@@ -308,15 +329,14 @@ int ICACHE_FLASH_ATTR register_probe(struct probeinfo pi)
   }
   if (! known)
   { 
-    if(!fifo_isfull(&scanmap.probesinfos)) {
-      union data_item item;
-      item.probeinfo = pi;
-      fifo_push(&scanmap.probesinfos, item); 
-      toggle_led();
-    } else {
+    if(fifo_isfull(&scanmap.probesinfos)) {
       fifo_pop(&scanmap.probesinfos);
       os_printf("exceeded max scanmap.probes_known\n"); 
     }
+    union data_item item;
+    item.probeinfo = pi;
+    fifo_push(&scanmap.probesinfos, item); 
+    LED_TOGGLE();
   }
   return known;
 }
@@ -335,15 +355,14 @@ int ICACHE_FLASH_ATTR register_client(struct clientinfo ci)
   }
   if (! known)
   {
-    if(!fifo_isfull(&scanmap.clientsinfos)) {
-      union data_item item;
-      item.clientinfo = ci;
-      fifo_push(&scanmap.clientsinfos, item);
-      toggle_led();
-    } else {
+    if(fifo_isfull(&scanmap.clientsinfos)) {
       fifo_pop(&scanmap.clientsinfos);
       os_printf("exceeded max scanmap.clients_known\n");
     }
+      union data_item item;
+      item.clientinfo = ci;
+      fifo_push(&scanmap.clientsinfos, item);
+      LED_TOGGLE();
   }
   return known;
 }
@@ -500,6 +519,10 @@ bool ICACHE_FLASH_ATTR scanmap_isempty() {
   return fifo_isempty(&scanmap.beaconsinfos) && fifo_isempty(&scanmap.probesinfos) && fifo_isempty(&scanmap.clientsinfos);
 }
 
+bool ICACHE_FLASH_ATTR scanmap_isfull() {
+  return fifo_isfull(&scanmap.beaconsinfos) || fifo_isfull(&scanmap.probesinfos) || fifo_isfull(&scanmap.clientsinfos);
+}
+
 struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi() {
   uint8_t i,u;
   
@@ -520,8 +543,10 @@ struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi() {
 void ICACHE_FLASH_ATTR scanmap_init() {
   
   fifo_init(&scanmap.beaconsinfos, scanmap.beacons_buffer, MAX_APS_TRACKED);
-  fifo_init(&scanmap.probesinfos, scanmap.probes_buffer, MAX_APS_TRACKED);
-  fifo_init(&scanmap.clientsinfos, scanmap.clients_buffer, MAX_APS_TRACKED);
+  fifo_init(&scanmap.probesinfos, scanmap.probes_buffer, MAX_PROBES_TRACKED);
+  fifo_init(&scanmap.clientsinfos, scanmap.clients_buffer, MAX_CLIENTS_TRACKED);
+  
+  scanmap.wififound = false;
   
   os_timer_disarm(&channelHop_timer);
   os_timer_setfn(&channelHop_timer, (os_timer_func_t *) channelHop, NULL);

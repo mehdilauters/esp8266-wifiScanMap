@@ -50,10 +50,11 @@ char buffer[ MAX_BUFFER_SIZE ];
 static void send_dns_data();
 static void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg );
 char b64_buffer[ B64_BUFFER_SIZE ];
-int to_send = 0;
+int total_size = 0;
 int already_sent = 0;
 int dns_tries = 0;
 int dns_last_send = 0;
+int dns_frame_id =0;
 
 #endif
 
@@ -100,6 +101,13 @@ void connect_station(struct wifi _wifi) {
 
 void sync_cb(void *arg)
 {
+  #if SYNC_POLICY == SYNC_POLICY_FULL
+    if(!scanmap_isfull()) {
+      scanmap_print_fifos_sizes();
+      os_printf("Not full\n");
+      return;
+    }
+  #endif
   struct wifi * w = scanmap_get_available_wifi(); 
   if(w != NULL) {
     os_timer_disarm(&sync_timer);
@@ -150,29 +158,36 @@ void send_data( void *arg ) {
 void send_dns_data(  ) {
   os_memset(b64_buffer, 0, MAX_B64_SIZE);
   
-  if(to_send == 0)
+  if(already_sent == total_size || already_sent == 0)
   {
     os_memset(buffer, 0, MAX_BUFFER_SIZE);
     build_json(&scanmap);
-    os_printf("%s", buffer);
-    to_send = strlen(buffer) + 1;
+    os_printf("%s\n", buffer);
+    total_size = strlen(buffer);
     already_sent = 0;
+    dns_frame_id = 0;
   }
   
   // 
   // +1 because of the subdomain '.' and +1 because of \0
   int host_size = strlen(SYNC_HOST) +1+1;
   
-  int size = MAX_B64_SIZE;
-  if(to_send < size) {
-    size = to_send;
+  int size = MAX_B64_SIZE - 4;
+  if(total_size - already_sent < size) {
+    size = total_size - already_sent;
   }
-  int count = base64_encode(size, buffer+already_sent, B64_BUFFER_SIZE, b64_buffer);
+  char tmp[MAX_B64_SIZE];
+  os_memset(tmp,0,MAX_B64_SIZE);
+  
+  os_sprintf(tmp,"%2d",dns_frame_id);
+  os_memcpy( tmp+2, buffer+already_sent, size);
+  
+  int count = base64_encode(size+2, tmp, B64_BUFFER_SIZE, b64_buffer);
+  
   dns_last_send = size;
-  to_send -= size;
   already_sent += size;
   
-  os_printf("SEND DNS DATA %d\n", size);
+  os_printf("SEND DNS DATA f=%d\n", dns_frame_id);
   
   char host[255];
   os_sprintf(host,".%s",SYNC_HOST);
@@ -277,23 +292,23 @@ void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
     os_printf("DNS lookup failed\n");
     dns_tries++;
     if(dns_tries >= MAX_TRIES) {
-      to_send = 0;
+      total_size = 0;
+      already_sent = 0;
+      dns_frame_id = 0;
       sync_done(false);
       return;
     }
-    to_send += dns_last_send;
     already_sent -= dns_last_send;
-    os_printf("Retry last_chunk=%d to_send=%d\n", dns_last_send, to_send);
     send_dns_data();
   }
   else
   {
+    dns_frame_id++;
     dns_tries = 0;
-    os_printf("DNS SYNC DONE %d\n",to_send);
-    if(scanmap_isempty() && to_send == 0) {
+    os_printf("DNS SYNC DONE %d %d\n",already_sent, total_size);
+    if(scanmap_isempty() && already_sent >= total_size) {
       sync_done(true);
     } else {
-      os_printf("sending more data\n");
       send_dns_data();
     }
   }

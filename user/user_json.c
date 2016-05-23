@@ -17,6 +17,9 @@ char * printmac(char *_out, uint8_t *buf) {
 }
 
 bool build_probe_json(struct probeinfo pi, bool second) {
+  if(pi.err) {
+    return true;
+  }
   char buf [MAX_SMALL_BUFFER_SIZE];
   os_memset(buf, 0, MAX_SMALL_BUFFER_SIZE);
   char mac[17];
@@ -29,6 +32,9 @@ bool build_probe_json(struct probeinfo pi, bool second) {
 }
 
 bool build_beacon_json(struct beaconinfo bi, bool second) {
+  if(bi.err) {
+    return true;
+  }
   char buf [MAX_SMALL_BUFFER_SIZE];
   os_memset(buf, 0, MAX_SMALL_BUFFER_SIZE);
   char mac[17];
@@ -41,6 +47,9 @@ bool build_beacon_json(struct beaconinfo bi, bool second) {
 }
 
 bool build_client_json(struct clientinfo ci, bool second) {
+  if(ci.err) {
+    return true;
+  }
   char buf[MAX_SMALL_BUFFER_SIZE];
   os_memset(buf, 0, MAX_SMALL_BUFFER_SIZE);
   char mac[17];
@@ -61,10 +70,12 @@ void build_beacons_json(fifo_t *_beacons) {
       res = build_beacon_json(fifo_pop(_beacons).beaconinfo,false);
     } else {
       res = build_beacon_json(fifo_pop(_beacons).beaconinfo, true);
-      if(!res) {
-        break;
-      }
     }
+    
+    if(!res) {
+      break;
+    }
+    
     i++;
   }  
   json_put_char(']');
@@ -79,10 +90,12 @@ void build_probes_json(fifo_t *_probes) {
       res = build_probe_json(fifo_pop(_probes).probeinfo, false);
     } else {
       res = build_probe_json(fifo_pop(_probes).probeinfo, true);
-      if(!res) {
-        break;
-      }
     }
+    
+    if(!res) {
+      break;
+    }
+    
     i++;
   }  
   json_put_char(']');
@@ -92,11 +105,17 @@ void build_clients_json(fifo_t *_clients) {
   json_put_char('[');  
   uint16_t i = 0;
   while(!fifo_isempty(_clients)) {
+    bool res;
     if(i == 0){
-      build_client_json(fifo_pop(_clients).clientinfo,false);
+      res = build_client_json(fifo_pop(_clients).clientinfo,false);
     } else {
-      build_client_json(fifo_pop(_clients).clientinfo, true);
+      res = build_client_json(fifo_pop(_clients).clientinfo, true);
     }
+    
+    if(!res) {
+      break;
+    }
+    
     i++;
   }  
   json_put_char(']');
