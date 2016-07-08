@@ -9,7 +9,7 @@
 // #include "espconn.h"
 
 #include "wifis_spots.h"
-
+#include "data.h"
 
 #ifdef LED_TOGGLE_REGISTER
 #define LED_TOGGLE() toggle_led();
@@ -300,6 +300,7 @@ int ICACHE_FLASH_ATTR register_beacon(struct beaconinfo beacon)
     if(fifo_isfull(&scanmap.beaconsinfos)) {
       fifo_pop(&scanmap.beaconsinfos);
       os_printf("exceeded max scanmap.aps_known\n");
+      sync_sync();
     }
     union data_item item;
     item.beaconinfo = beacon;
@@ -332,6 +333,7 @@ int ICACHE_FLASH_ATTR register_probe(struct probeinfo pi)
     if(fifo_isfull(&scanmap.probesinfos)) {
       fifo_pop(&scanmap.probesinfos);
       os_printf("exceeded max scanmap.probes_known\n"); 
+      sync_sync();
     }
     union data_item item;
     item.probeinfo = pi;
@@ -358,6 +360,7 @@ int ICACHE_FLASH_ATTR register_client(struct clientinfo ci)
     if(fifo_isfull(&scanmap.clientsinfos)) {
       fifo_pop(&scanmap.clientsinfos);
       os_printf("exceeded max scanmap.clients_known\n");
+      sync_sync();
     }
       union data_item item;
       item.clientinfo = ci;

@@ -46,7 +46,6 @@
 
 // have a look to wifis_spots.h to configure your wifis access
 
-struct data scanmap;
 uint32_t get_seconds();
 
 void toggle_led();

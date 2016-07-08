@@ -10,4 +10,6 @@ bool json_put_char(char c);
 bool json_put_string(char *s);
 #endif
 
+void sync_sync();
+
 #endif

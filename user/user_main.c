@@ -139,7 +139,8 @@ void hex_print(char *p, size_t n)
 static void ICACHE_FLASH_ATTR
 user_procTask(os_event_t *events)
 {
-  os_delay_us(10);
+  os_delay_us(100);
+  system_os_post(user_procTaskPrio, 0, 0 );
 }
 
 

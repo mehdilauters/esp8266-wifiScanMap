@@ -10,6 +10,7 @@
 #include "user_interface.h"
 #include "ip_addr.h"
 #include "espconn.h"
+#include "data.h"
 
 #define WATCHDOG_MS 10000
 
@@ -99,15 +100,8 @@ void connect_station(struct wifi _wifi) {
   wifi_station_connect();
 }
 
-void sync_cb(void *arg)
+void sync_sync()
 {
-  #if SYNC_POLICY == SYNC_POLICY_FULL
-    if(!scanmap_isfull()) {
-      scanmap_print_fifos_sizes();
-      os_printf("Not full\n");
-      return;
-    }
-  #endif
   struct wifi * w = scanmap_get_available_wifi(); 
   if(w != NULL) {
     os_timer_disarm(&sync_timer);
@@ -116,8 +110,13 @@ void sync_cb(void *arg)
     scanmap_print_fifos_sizes();
     connect_station(*w);
   } else {
-   os_printf("No known wifi availble\n"); 
+    os_printf("No known wifi availble\n"); 
   }
+}
+
+void sync_cb(void *arg)
+{
+  sync_sync();
 }
 
 void sync_done(bool ok) {
@@ -289,9 +288,11 @@ void dns_done( const char *name, ip_addr_t *ipaddr, void *arg )
 void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
   if ( ipaddr == NULL) 
   {
-    os_printf("DNS lookup failed\n");
+    os_printf("DNS lookup failed ");
     dns_tries++;
     if(dns_tries >= MAX_TRIES) {
+      os_printf("aborting\n");
+      dns_tries = 0;
       total_size = 0;
       already_sent = 0;
       dns_frame_id = 0;
@@ -299,6 +300,7 @@ void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
       return;
     }
     already_sent -= dns_last_send;
+    os_printf("retrying\n");
     send_dns_data();
   }
   else
