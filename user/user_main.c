@@ -1,12 +1,11 @@
 #include "ets_sys.h"
 #include "osapi.h"
 #include "gpio.h"
-// #include "uart.h"
-// #include "driver/uart_register.h"
 #include "user_config.h"
 #include "user_json.h"
 #include "scanmap.h"
 #include "sync.h"
+#include "uart.h"
 
 #include "user_interface.h"
 
@@ -134,19 +133,32 @@ void hex_print(char *p, size_t n)
 
 
 
+void ICACHE_FLASH_ATTR process_uart() {
+
+  uint8 uart_buf[128]={0};
+  uint16 len = 0;
+  len = rx_buff_deq(uart_buf, 128 );
+  if(len !=0)
+  {
+    int i;
+    for(i=0; i < len; i++) {
+      os_printf("%c",uart_buf[i]);
+    }
+  }
+}
 
 //Do nothing function
 static void ICACHE_FLASH_ATTR
 user_procTask(os_event_t *events)
 {
-  os_delay_us(100);
+  process_uart();
+  os_delay_us(1000);
   system_os_post(user_procTaskPrio, 0, 0 );
 }
 
 
 
 void ICACHE_FLASH_ATTR init_done(void) {
-//   os_printf("\n\nSDK version:%s\n", system_get_sdk_version());
   os_printf("Sdk version %s\n", system_get_sdk_version());
   scanmap_init();
   sync_init();
@@ -165,8 +177,7 @@ user_init()
   // avoid error: pll_cal exceeds 2ms!!!
   wifi_set_sleep_type(NONE_SLEEP_T);
   
-  
-  uart_div_modify(0, UART_CLK_FREQ / 115200);
+  uart_init(BIT_RATE_115200, BIT_RATE_115200);
   
   // Initialize the GPIO subsystem.
   gpio_init();
@@ -187,7 +198,7 @@ user_init()
   
   //Start os task
   system_os_task(user_procTask, user_procTaskPrio,user_procTaskQueue, user_procTaskQueueLen);
-  
+  system_os_post(user_procTaskPrio, 0, 0 );
   
   os_printf("Hello\n\r");
 }
