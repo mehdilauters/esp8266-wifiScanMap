@@ -5,7 +5,7 @@
 #include "user_json.h"
 #include <mem.h> 
 #include "osapi.h"
-
+#include "upgrade.h"
 #include "ip_addr.h"
 #include "user_interface.h"
 #include "ip_addr.h"
@@ -110,7 +110,7 @@ void sync_sync()
     scanmap_print_fifos_sizes();
     connect_station(*w);
   } else {
-    os_printf("No known wifi availble\n"); 
+    os_printf("No known wifi available\n"); 
   }
 }
 
@@ -121,11 +121,20 @@ void sync_cb(void *arg)
 
 void sync_done(bool ok) {
   os_timer_disarm(&sync_timer);
-  wifi_station_disconnect();
   os_printf("== Synchro end ==\n");
   scanmap_print_fifos_sizes();
-  scanmap_enable();
-  os_timer_arm(&sync_timer, SYNC_PERIOD, 1);
+  
+#ifdef USE_OTA
+  if(!handleUpgrade(2, "192.168.211.145",8000,"build/app.out")) {
+#endif
+    wifi_station_disconnect();
+    scanmap_enable();
+    os_timer_arm(&sync_timer, SYNC_PERIOD, 1);
+
+#ifdef USE_OTA
+  }
+#endif
+  
 }
 
 void watchdog_cb(void *arg) {

@@ -5,8 +5,6 @@
 
 #include "ip_addr.h"
 #include "user_interface.h"
-// #include "ip_addr.h"
-// #include "espconn.h"
 
 #include "wifis_spots.h"
 #include "data.h"
@@ -23,7 +21,6 @@ void channelHop(void *arg)
 {
   // 1 - 13 channel hopping
   uint8 new_channel = wifi_get_channel() % 12 + 1;
-  //   os_printf("switching channel %d\n", new_channel);
   wifi_set_channel(new_channel);
 }
 
@@ -438,14 +435,11 @@ void ICACHE_FLASH_ATTR promisc_cb(uint8_t *buf, uint16_t len)
     struct sniffer_buf2 *sniffer = (struct sniffer_buf2*) buf;
     
     if(sniffer->buf[0] == 0x80) {
-      //       os_printf("======\n");
-      //       hex_print(buf, 112);
       struct beaconinfo beacon = parse_beacon(sniffer->buf, 112, sniffer->rx_ctrl.rssi);
       
       if (register_beacon(beacon) == 0) {
         #ifdef PRINT_ELEMENTS
-        print_beacon(beacon);
-        //Serial.println("+");
+          print_beacon(beacon);
         #endif
         scanmap.nothing_new = 0;
       }
@@ -454,8 +448,7 @@ void ICACHE_FLASH_ATTR promisc_cb(uint8_t *buf, uint16_t len)
       if(strlen(pi.ssid) != 0) {
         if(register_probe(pi) == 0) {
           #ifdef PRINT_ELEMENTS
-          //Serial.println("*");
-          print_probe(pi);
+            print_probe(pi);
           #endif
           scanmap.nothing_new = 0;
         }
@@ -470,8 +463,7 @@ void ICACHE_FLASH_ATTR promisc_cb(uint8_t *buf, uint16_t len)
       if (memcmp(ci.bssid, ci.station, ETH_MAC_LEN)) {
         if (register_client(ci) == 0) {
           #ifdef PRINT_ELEMENTS
-          print_client(ci);
-          //Serial.println("-");
+            print_client(ci);
           #endif
           scanmap.nothing_new = 0;
         }
@@ -486,6 +478,7 @@ void ICACHE_FLASH_ATTR promisc_cb(uint8_t *buf, uint16_t len)
 void ICACHE_FLASH_ATTR enable_monitor() {
   os_printf("enable monitor\n");
   os_timer_arm(&channelHop_timer, CHANNEL_HOP_INTERVAL, 1);
+  
   // Promiscuous works only with station mode
   wifi_station_disconnect();
   wifi_set_opmode(STATION_MODE);

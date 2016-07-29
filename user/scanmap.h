@@ -71,12 +71,23 @@ struct data {
 #undef T
 
 void ICACHE_FLASH_ATTR scanmap_init();
+
+// enable scanning
 void ICACHE_FLASH_ATTR scanmap_enable();
+
+// clear all fifos
 void ICACHE_FLASH_ATTR scanmap_reset();
+
+// check if at least on fifo is empty
 bool ICACHE_FLASH_ATTR scanmap_isempty();
+
+// check if at least one fifo is full
 bool ICACHE_FLASH_ATTR scanmap_isfull();
+
+// print all fifo size
 bool ICACHE_FLASH_ATTR scanmap_print_fifos_sizes();
 
+// return a known wifi to connect
 struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi();
 
 #endif
