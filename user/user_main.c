@@ -159,7 +159,7 @@ user_procTask(os_event_t *events)
 
 
 void ICACHE_FLASH_ATTR init_done(void) {
-  os_printf("esp8266_%d, Sdk version %s\n", spi_flash_get_id(), system_get_sdk_version());
+  os_printf("esp8266_%d, Sdk version %s\n", system_get_chip_id(), system_get_sdk_version());
   scanmap_init();
   sync_init();
 }

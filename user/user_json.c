@@ -123,7 +123,7 @@ void build_clients_json(fifo_t *_clients) {
 
 void build_json(struct data *_data) {
   char tmp[MAX_SMALL_BUFFER_SIZE];
-  os_sprintf(tmp, "{\"n\":\"esp8266_%d\",",spi_flash_get_id());
+  os_sprintf(tmp, "{\"n\":\"esp8266_%d\",",system_get_chip_id());
   json_put_string(tmp);
   json_put_string("\"p\":");
   build_probes_json(&_data->probesinfos);
