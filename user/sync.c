@@ -48,7 +48,7 @@ char buffer[ MAX_BUFFER_SIZE ];
 # define MAX_B64_SIZE 40
 #define B64_BUFFER_SIZE B64_LENGTH(MAX_B64_SIZE) + 20
 
-static void send_dns_data();
+static void send_dns_data(bool retry);
 static void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg );
 char b64_buffer[ B64_BUFFER_SIZE ];
 int total_size = 0;
@@ -163,44 +163,48 @@ void send_data( void *arg ) {
 
 
 #ifdef SYNC_DNS
-void send_dns_data(  ) {
-  os_memset(b64_buffer, 0, MAX_B64_SIZE);
+void send_dns_data( bool retry ) {
   
-  if(already_sent == total_size || already_sent == 0)
+  if(! retry )
   {
-    os_memset(buffer, 0, MAX_BUFFER_SIZE);
-    build_json(&scanmap);
-    os_printf("%s\n", buffer);
-    total_size = strlen(buffer);
-    already_sent = 0;
-    dns_frame_id = 0;
+  
+    if(already_sent == total_size || already_sent == 0)
+    {
+      os_memset(b64_buffer, 0, MAX_B64_SIZE);
+      os_memset(buffer, 0, MAX_BUFFER_SIZE);
+      build_json(&scanmap);
+      os_printf("%s\n", buffer);
+      total_size = strlen(buffer);
+      already_sent = 0;
+      dns_frame_id = 0;
+    }
+    
+    // 
+    // +1 because of the subdomain '.' and +1 because of \0
+    int host_size = strlen(SYNC_HOST) +1+1;
+    
+    int size = MAX_B64_SIZE - 4;
+    if(total_size - already_sent < size) {
+      size = total_size - already_sent;
+    }
+    char tmp[MAX_B64_SIZE];
+    os_memset(tmp,0,MAX_B64_SIZE);
+    
+    os_sprintf(tmp,"%2d",dns_frame_id);
+    os_memcpy( tmp+2, buffer+already_sent, size);
+    
+    int count = base64_encode(size+2, tmp, B64_BUFFER_SIZE, b64_buffer);
+    
+    dns_last_send = size;
+    already_sent += size;
+    
+    os_printf("SEND DNS DATA f=%d\n", dns_frame_id);
+    
+    char host[255];
+    os_sprintf(host,".%s",SYNC_HOST);
+    os_strcpy(b64_buffer+count,host);
   }
-  
-  // 
-  // +1 because of the subdomain '.' and +1 because of \0
-  int host_size = strlen(SYNC_HOST) +1+1;
-  
-  int size = MAX_B64_SIZE - 4;
-  if(total_size - already_sent < size) {
-    size = total_size - already_sent;
-  }
-  char tmp[MAX_B64_SIZE];
-  os_memset(tmp,0,MAX_B64_SIZE);
-  
-  os_sprintf(tmp,"%2d",dns_frame_id);
-  os_memcpy( tmp+2, buffer+already_sent, size);
-  
-  int count = base64_encode(size+2, tmp, B64_BUFFER_SIZE, b64_buffer);
-  
-  dns_last_send = size;
-  already_sent += size;
-  
-  os_printf("SEND DNS DATA f=%d\n", dns_frame_id);
-  
-  char host[255];
-  os_sprintf(host,".%s",SYNC_HOST);
-  os_strcpy(b64_buffer+count,host);
-//   os_printf("\n=>%s\n", b64_buffer);
+  os_printf("\n=>%s\n", b64_buffer);
   espconn_gethostbyname( &sync_conn, b64_buffer, &sync_ip, dns_sync_done );
 }
 #endif
@@ -310,7 +314,7 @@ void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
     }
     already_sent -= dns_last_send;
     os_printf("retrying\n");
-    send_dns_data();
+    send_dns_data(true);
   }
   else
   {
@@ -320,7 +324,7 @@ void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
     if(scanmap_isempty() && already_sent >= total_size) {
       sync_done(true);
     } else {
-      send_dns_data();
+      send_dns_data(false);
     }
   }
 }
@@ -361,7 +365,7 @@ void wifi_callback( System_Event_t *evt )
         espconn_gethostbyname( &sync_conn, SYNC_HOST, &sync_ip, dns_done );
       #elif defined(SYNC_DNS)
         os_printf("\nDNS sync\n");
-        send_dns_data();
+        send_dns_data(false);
       #else
         os_printf("ERROR: no transport protocol\n");
       #endif

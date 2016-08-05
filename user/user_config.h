@@ -9,9 +9,6 @@
 
 #define CHANNEL_HOP_INTERVAL 100
 
-#define SYNC_POLICY_TIMER 0x0
-#define SYNC_POLICY_FULL 0x1
-
 
 // #define PRINT_ELEMENTS 1
 
@@ -20,12 +17,10 @@
 
 #define SYNC_HOST "t1.lauters.fr"
 // #define SYNC_HOST "wifis.lauters.fr"
-#define SYNC_PORT 6667
-#define SYNC_PATH "/esp8266.json"
+// #define SYNC_PORT 8686
+// #define SYNC_PATH "/esp8266.json"
 #define SYNC_MIN_LEVEL -75
 // #define SYNC_SSL
-
-#define SYNC_POLICY SYNC_POLICY_FULL
 
 // sync data through dns tunneling
 #define SYNC_DNS
@@ -36,15 +31,19 @@
 
 #include "os_type.h"
 
-#define SYNC_PERIOD 10*1000
+//10s
+#define SYNC_PERIOD 1*60*1000
 
 #define MAX_TRIES 5
 
+// uncomment to use over the air upgrade
+// #define USE_OTA
 
 // uncomment to toggle at each registered entity (beacon, probe, client...)
 // #define LED_TOGGLE_REGISTER
 
 // have a look to wifis_spots.h to configure your wifis access
+
 
 uint32_t get_seconds();
 
