@@ -116,7 +116,10 @@ void sync_sync()
 
 void sync_cb(void *arg)
 {
-  sync_sync();
+  if(SYNC_TYPE == sync_type_time || SYNC_TYPE == sync_type_both) {
+    os_printf("FAAAAAAAIl\n");
+    sync_sync();
+  }
 }
 
 void sync_done(bool ok) {
@@ -205,7 +208,10 @@ void send_dns_data( bool retry ) {
     os_strcpy(b64_buffer+count,host);
   }
   os_printf("\n=>%s\n", b64_buffer);
-  espconn_gethostbyname( &sync_conn, b64_buffer, &sync_ip, dns_sync_done );
+  err_t res = espconn_gethostbyname( &sync_conn, b64_buffer, &sync_ip, dns_sync_done );
+  if(res != ESPCONN_OK) {
+    os_printf("DNS error %d\n",res);
+  }
 }
 #endif
 
@@ -298,6 +304,16 @@ void dns_done( const char *name, ip_addr_t *ipaddr, void *arg )
 #endif
 
 #ifdef SYNC_DNS
+
+bool dns_ok(ip_addr_t *ipaddr){
+  bool ok = *((uint8 *)&ipaddr->addr) == 0 && *((uint8 *)&ipaddr->addr + 1) == 0 && *((uint8 *)&ipaddr->addr + 2) == 0  && *((uint8 *)&ipaddr->addr + 3) == 0;
+  if(!ok) {
+    os_printf("protocol error %d.%d.%d.%d\n",
+        *((uint8 *)&ipaddr->addr), *((uint8 *)&ipaddr->addr + 1), *((uint8 *)&ipaddr->addr + 2), *((uint8 *)&ipaddr->addr + 3));
+  }
+  return ok;
+}
+
 void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
   if ( ipaddr == NULL) 
   {
@@ -318,13 +334,32 @@ void dns_sync_done( const char *name, ip_addr_t *ipaddr, void *arg ) {
   }
   else
   {
-    dns_frame_id++;
-    dns_tries = 0;
-    os_printf("DNS SYNC DONE %d %d\n",already_sent, total_size);
-    if(scanmap_isempty() && already_sent >= total_size) {
-      sync_done(true);
-    } else {
-      send_dns_data(false);
+    if(dns_ok(ipaddr))
+    {
+      dns_frame_id++;
+      dns_tries = 0;
+//       os_printf("DNS SYNC DONE %d %d\n",already_sent, total_size);
+      if(scanmap_isempty() && already_sent >= total_size) {
+        sync_done(true);
+      } else {
+        send_dns_data(false);
+      } 
+    }
+    else
+    {
+      dns_tries++;
+      if(dns_tries >= MAX_TRIES) {
+        os_printf("aborting\n");
+        dns_tries = 0;
+        total_size = 0;
+        already_sent = 0;
+        dns_frame_id = 0;
+        sync_done(false);
+        return;
+      }
+      already_sent -= dns_last_send;
+      os_printf("retrying\n");
+      send_dns_data(true);
     }
   }
 }

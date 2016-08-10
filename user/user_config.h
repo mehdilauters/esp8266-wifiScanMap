@@ -2,10 +2,10 @@
 #define USER_CONFIG_HPP
 
 
-#define ETH_MAC_LEN 6
-#define MAX_APS_TRACKED 100
-#define MAX_CLIENTS_TRACKED 20
-#define MAX_PROBES_TRACKED 200
+#define ETH_MAC_LEN 5
+#define MAX_APS_TRACKED 20
+#define MAX_CLIENTS_TRACKED 0
+#define MAX_PROBES_TRACKED 0
 
 #define CHANNEL_HOP_INTERVAL 100
 
@@ -31,7 +31,12 @@
 
 #include "os_type.h"
 
-//10s
+// used with sync_type_position will ensure that there will be at least X access point on the fifo
+#define MIN_SYNCING_BEST_AP 5
+
+#define SYNC_TYPE sync_type_position
+
+//millis
 #define SYNC_PERIOD 1*60*1000
 
 #define MAX_TRIES 5

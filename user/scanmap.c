@@ -5,7 +5,7 @@
 
 #include "ip_addr.h"
 #include "user_interface.h"
-
+#include "sync.h"
 #include "wifis_spots.h"
 #include "data.h"
 
@@ -28,6 +28,12 @@ uint8_t broadcast1[3] = { 0x01, 0x00, 0x5e };
 uint8_t broadcast2[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 uint8_t broadcast3[3] = { 0x33, 0x33, 0x00 };
 
+
+void ICACHE_FLASH_ATTR scanmap_clear() {
+  fifo_clear(&scanmap.beaconsinfos);
+  fifo_clear(&scanmap.probesinfos);
+  fifo_clear(&scanmap.clientsinfos);
+}
 
 void ICACHE_FLASH_ATTR print_beacon(struct beaconinfo beacon)
 {
@@ -100,7 +106,7 @@ void ICACHE_FLASH_ATTR print_client(struct clientinfo ci)
 bool is_valid_string(char * _s, int _len) {
   int i;
   for(i = 0; i<_len; i++) {
-    if(_s[i] < 32 || _s[i] > 128) {
+    if(_s[i] < 32 || _s[i] > 126) {
       return false;
     }
   }
@@ -293,11 +299,20 @@ int ICACHE_FLASH_ATTR register_beacon(struct beaconinfo beacon)
   if (! known)  // AP is NEW, copy MAC to array and return it
   {
     
-    
+    bool synced = false;
     if(fifo_isfull(&scanmap.beaconsinfos)) {
       fifo_pop(&scanmap.beaconsinfos);
       os_printf("exceeded max scanmap.aps_known\n");
-      sync_sync();
+      if(SYNC_TYPE == sync_type_full || SYNC_TYPE == sync_type_both) {
+        sync_sync();
+        synced = true;
+      }
+    }
+    if(!synced && SYNC_TYPE == sync_type_position) {
+      if(fifo_size(&scanmap.beaconsinfos) >= MIN_SYNCING_BEST_AP) {
+        sync_sync();
+        scanmap_clear();
+      }
     }
     union data_item item;
     item.beaconinfo = beacon;
@@ -330,7 +345,9 @@ int ICACHE_FLASH_ATTR register_probe(struct probeinfo pi)
     if(fifo_isfull(&scanmap.probesinfos)) {
       fifo_pop(&scanmap.probesinfos);
       os_printf("exceeded max scanmap.probes_known\n"); 
-      sync_sync();
+      if(SYNC_TYPE == sync_type_full || SYNC_TYPE == sync_type_both) {
+        sync_sync();
+      }
     }
     union data_item item;
     item.probeinfo = pi;
@@ -357,7 +374,9 @@ int ICACHE_FLASH_ATTR register_client(struct clientinfo ci)
     if(fifo_isfull(&scanmap.clientsinfos)) {
       fifo_pop(&scanmap.clientsinfos);
       os_printf("exceeded max scanmap.clients_known\n");
-      sync_sync();
+      if(SYNC_TYPE == sync_type_full || SYNC_TYPE == sync_type_both) {
+        sync_sync();
+      }
     }
       union data_item item;
       item.clientinfo = ci;
@@ -498,10 +517,9 @@ void ICACHE_FLASH_ATTR scanmap_enable() {
   enable_monitor();
 }
 
+
 void ICACHE_FLASH_ATTR scanmap_reset() {
-  fifo_clear(&scanmap.beaconsinfos);
-  fifo_clear(&scanmap.probesinfos);
-  fifo_clear(&scanmap.clientsinfos);
+  scanmap_clear();
   enable_monitor();
 }
 
@@ -527,10 +545,14 @@ struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi() {
     for (u = 0; u < fifo_size(&scanmap.beaconsinfos); u++)
     {
       struct beaconinfo item = fifo_at(&scanmap.beaconsinfos, u).beaconinfo;
-      if(strlen(wifis_spots[i].essid) == item.ssid_len)
-        if (! memcmp(wifis_spots[i].essid, item.ssid, item.ssid_len)) {
+//       check for any open network
+      if(strlen(wifis_spots[i].essid) == 0 && ! item.encryption && item.rssi >= SYNC_MIN_LEVEL) {
+        print_beacon(item);
+        return &wifis_spots[i];
+      } else if(strlen(wifis_spots[i].essid) == item.ssid_len)
+        if (! memcmp(wifis_spots[i].essid, item.ssid, item.ssid_len) && item.rssi >= SYNC_MIN_LEVEL) {
           return &wifis_spots[i];
-        }   // AP known => Set known flag
+        }
     }
   }
   return NULL;
