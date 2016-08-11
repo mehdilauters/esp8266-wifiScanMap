@@ -45,7 +45,7 @@ char buffer[ MAX_BUFFER_SIZE ];
 #define B64_LENGTH(n) (((4 * n / 3) + 3) & ~3)
 
 // b64 size
-# define MAX_B64_SIZE 40
+# define MAX_B64_SIZE 20
 #define B64_BUFFER_SIZE B64_LENGTH(MAX_B64_SIZE) + 20
 
 static void send_dns_data(bool retry);
@@ -159,7 +159,6 @@ void send_data( void *arg ) {
   char tmp[6];
   os_sprintf( tmp, "%5d", new_size - size);
   os_memcpy(&buffer[size-5 - 4], tmp, 5);
-//   os_printf("%s\n",buffer);
   SEND( conn, buffer, os_strlen( buffer ) );
 }
 #endif
@@ -193,23 +192,24 @@ void send_dns_data( bool retry ) {
     char tmp[MAX_B64_SIZE];
     os_memset(tmp,0,MAX_B64_SIZE);
     
-    os_sprintf(tmp,"%2d",dns_frame_id);
-    os_memcpy( tmp+2, buffer+already_sent, size);
+    uint32_t id = system_get_chip_id();
+    os_sprintf(tmp,"%8d",id);
+    os_sprintf(tmp+8,"%2d",dns_frame_id);
     
-    int count = base64_encode(size+2, tmp, B64_BUFFER_SIZE, b64_buffer);
+    // add random to avoid cache
+    uint16_t rand = os_random();
+    os_sprintf(tmp+8 + 2,"%4d",rand);
+    os_memcpy( tmp+8 + 2 + 4, buffer+already_sent, size);
     
+    int count = base64_encode(size+2+8 + 4, tmp, B64_BUFFER_SIZE, b64_buffer);
     dns_last_send = size;
     already_sent += size;
-    
-    os_printf("SEND DNS DATA f=%d\n", dns_frame_id);
-    
     char host[255];
     os_sprintf(host,".%s",SYNC_HOST);
     os_strcpy(b64_buffer+count,host);
   }
-  os_printf("\n=>%s\n", b64_buffer);
   err_t res = espconn_gethostbyname( &sync_conn, b64_buffer, &sync_ip, dns_sync_done );
-  if(res != ESPCONN_OK) {
+  if(res != ESPCONN_OK && res != ESPCONN_INPROGRESS) {
     os_printf("DNS error %d\n",res);
   }
 }

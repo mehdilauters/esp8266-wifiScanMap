@@ -342,7 +342,7 @@ int ICACHE_FLASH_ATTR register_probe(struct probeinfo pi)
   }
   if (! known)
   { 
-    if(fifo_isfull(&scanmap.probesinfos)) {
+    if(fifo_isfull(&scanmap.probesinfos) && MAX_PROBES_TRACKED != 0) {
       fifo_pop(&scanmap.probesinfos);
       os_printf("exceeded max scanmap.probes_known\n"); 
       if(SYNC_TYPE == sync_type_full || SYNC_TYPE == sync_type_both) {
@@ -371,7 +371,7 @@ int ICACHE_FLASH_ATTR register_client(struct clientinfo ci)
   }
   if (! known)
   {
-    if(fifo_isfull(&scanmap.clientsinfos)) {
+    if(fifo_isfull(&scanmap.clientsinfos) && MAX_CLIENTS_TRACKED != 0) {
       fifo_pop(&scanmap.clientsinfos);
       os_printf("exceeded max scanmap.clients_known\n");
       if(SYNC_TYPE == sync_type_full || SYNC_TYPE == sync_type_both) {
