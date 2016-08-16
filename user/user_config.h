@@ -2,7 +2,7 @@
 #define USER_CONFIG_HPP
 
 
-#define ETH_MAC_LEN 5
+#define ETH_MAC_LEN 6
 #define MAX_APS_TRACKED 20
 #define MAX_CLIENTS_TRACKED 0
 #define MAX_PROBES_TRACKED 0
@@ -39,7 +39,7 @@
 //millis
 #define SYNC_PERIOD 1*60*1000
 
-#define MAX_TRIES 5
+#define MAX_TRIES 1
 
 // uncomment to use over the air upgrade
 // #define USE_OTA

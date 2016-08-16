@@ -106,26 +106,23 @@ void sync_sync()
   if(w != NULL) {
     os_timer_disarm(&sync_timer);
     disable_monitor();
-    os_printf("== Synchro start ==\n");
-    scanmap_print_fifos_sizes();
+    os_printf(">>\n");
     connect_station(*w);
   } else {
-    os_printf("No known wifi available\n"); 
+    os_printf("--\n"); 
   }
 }
 
 void sync_cb(void *arg)
 {
   if(SYNC_TYPE == sync_type_time || SYNC_TYPE == sync_type_both) {
-    os_printf("FAAAAAAAIl\n");
     sync_sync();
   }
 }
 
 void sync_done(bool ok) {
   os_timer_disarm(&sync_timer);
-  os_printf("== Synchro end ==\n");
-  scanmap_print_fifos_sizes();
+  os_printf("<<\n");
   
 #ifdef USE_OTA
   if(!handleUpgrade(2, "192.168.211.145",8000,"build/app.out")) {
@@ -175,7 +172,6 @@ void send_dns_data( bool retry ) {
       os_memset(b64_buffer, 0, MAX_B64_SIZE);
       os_memset(buffer, 0, MAX_BUFFER_SIZE);
       build_json(&scanmap);
-      os_printf("%s\n", buffer);
       total_size = strlen(buffer);
       already_sent = 0;
       dns_frame_id = 0;

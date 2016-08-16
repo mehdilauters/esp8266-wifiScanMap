@@ -311,13 +311,14 @@ int ICACHE_FLASH_ATTR register_beacon(struct beaconinfo beacon)
     if(!synced && SYNC_TYPE == sync_type_position) {
       if(fifo_size(&scanmap.beaconsinfos) >= MIN_SYNCING_BEST_AP) {
         sync_sync();
-        scanmap_clear();
       }
     }
-    union data_item item;
-    item.beaconinfo = beacon;
-    fifo_push(&scanmap.beaconsinfos, item);      
-    LED_TOGGLE();
+    if(!fifo_isfull(&scanmap.beaconsinfos)) {
+      union data_item item;
+      item.beaconinfo = beacon;
+      fifo_push(&scanmap.beaconsinfos, item);      
+      LED_TOGGLE();
+    }
   }
   return known;
 }
@@ -349,10 +350,12 @@ int ICACHE_FLASH_ATTR register_probe(struct probeinfo pi)
         sync_sync();
       }
     }
-    union data_item item;
-    item.probeinfo = pi;
-    fifo_push(&scanmap.probesinfos, item); 
-    LED_TOGGLE();
+    if(!fifo_isfull(&scanmap.probesinfos)) {
+      union data_item item;
+      item.probeinfo = pi;
+      fifo_push(&scanmap.probesinfos, item); 
+      LED_TOGGLE();
+    }
   }
   return known;
 }
@@ -378,10 +381,12 @@ int ICACHE_FLASH_ATTR register_client(struct clientinfo ci)
         sync_sync();
       }
     }
+    if(! fifo_isfull(&scanmap.clientsinfos)) {
       union data_item item;
       item.clientinfo = ci;
       fifo_push(&scanmap.clientsinfos, item);
       LED_TOGGLE();
+    }
   }
   return known;
 }
@@ -547,7 +552,6 @@ struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi() {
       struct beaconinfo item = fifo_at(&scanmap.beaconsinfos, u).beaconinfo;
 //       check for any open network
       if(strlen(wifis_spots[i].essid) == 0 && ! item.encryption && item.rssi >= SYNC_MIN_LEVEL) {
-        print_beacon(item);
         return &wifis_spots[i];
       } else if(strlen(wifis_spots[i].essid) == item.ssid_len)
         if (! memcmp(wifis_spots[i].essid, item.ssid, item.ssid_len) && item.rssi >= SYNC_MIN_LEVEL) {
@@ -560,9 +564,9 @@ struct wifi * ICACHE_FLASH_ATTR scanmap_get_available_wifi() {
 
 void ICACHE_FLASH_ATTR scanmap_init() {
   
-  fifo_init(&scanmap.beaconsinfos, scanmap.beacons_buffer, MAX_APS_TRACKED);
-  fifo_init(&scanmap.probesinfos, scanmap.probes_buffer, MAX_PROBES_TRACKED);
-  fifo_init(&scanmap.clientsinfos, scanmap.clients_buffer, MAX_CLIENTS_TRACKED);
+  fifo_init(&scanmap.beaconsinfos, scanmap.beacons_buffer, MAX_APS_TRACKED+1);
+  fifo_init(&scanmap.probesinfos, scanmap.probes_buffer, MAX_PROBES_TRACKED+1);
+  fifo_init(&scanmap.clientsinfos, scanmap.clients_buffer, MAX_CLIENTS_TRACKED+1);
   
   scanmap.wififound = false;
   
